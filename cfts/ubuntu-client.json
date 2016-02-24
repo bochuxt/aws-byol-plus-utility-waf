@@ -1,0 +1,125 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Deploys a Ubuntu EC2 instanace with JMeter installed",
+  "Parameters": {
+    "Vpc": {
+      "Description": "Common VPC for whole deployment",
+      "Type": "AWS::EC2::VPC::Id"
+    },
+    "Subnet": {
+      "Description": "Common subnet for whole deployment",
+      "Type": "AWS::EC2::Subnet::Id"
+    },
+    "AvailabilityZone": {
+      "Description": "Availability zone in which resources are being deployed",
+      "Type": "AWS::EC2::AvailabilityZone::Name"
+    },
+    "KeyName": {
+      "Description": "Name of an existing EC2 KeyPair to enable SSH access to the instance",
+      "Type": "AWS::EC2::KeyPair::KeyName"
+    },
+    "InstanceType": {
+      "Description": "F5 BIG-IP Instance Type",
+      "Type": "String",
+      "Default": "m3.large",
+      "ConstraintDescription": "must be a valid Big-IP virtual EC2 instance type."
+    },
+    "BigipElasticLoadBalancerDnsName": {
+      "Description": "DNS Name for the ELB group of Utility and BYOL BIG-IPs",
+      "Type": "String"
+    }
+  },
+  "Mappings": {
+    "ImageRegionMap": {
+      "us-east-1": {
+        "Image": "ami-4c7a3924"
+      }
+    }
+  },
+  "Resources": {
+    "ClientSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "VpcId": {
+          "Ref": "Vpc"
+        },
+        "GroupDescription": "Enable SSH access via port 22",
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "22",
+            "ToPort": "22",
+            "CidrIp": "0.0.0.0/0"
+          }
+        ],
+        "Tags": [
+          {
+            "Key": "Application",
+            "Value": {
+              "Ref": "AWS::StackId"
+            }
+          }
+        ]
+      }
+    },
+    "JMeterClientEc2Instance": {
+      "Type": "AWS::EC2::Instance",
+      "Properties": {
+        "ImageId": {
+          "Fn::FindInMap": [
+            "ImageRegionMap",
+            {
+              "Ref": "AWS::Region"
+            },
+            "Image"
+          ]
+        },
+        "InstanceType": {
+          "Ref": "InstanceType"
+        },
+        "KeyName": {
+          "Ref": "KeyName"
+        },
+        "AvailabilityZone": {
+          "Ref": "AvailabilityZone"
+        },
+        "NetworkInterfaces": [
+          {
+            "DeviceIndex": "0",
+            "Description": "Network interface for Ubuntu client host",
+            "AssociatePublicIpAddress": "true",
+            "DeleteOnTermination": true,
+            "GroupSet": [
+              {
+                "Ref": "ClientSecurityGroup"
+              }
+            ],
+            "SubnetId": {
+              "Ref": "Subnet"
+            }
+          }
+        ],
+        "UserData": { "Fn::Base64" : { "Fn::Join" : ["", [
+              "#cloud-config\n",
+              "repo_update: true\n",
+              "repo_upgrade: all\n",
+              "\n",
+              "packages:\n",
+              " - jmeter\n",
+              ""
+              ]
+            ]
+          }
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "JMeter Client Instance"
+          }
+        ]
+      }
+    }
+  },
+  "Outputs": {
+  }
+}

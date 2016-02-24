@@ -1,0 +1,119 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "This template deploys all components to support the application, with the exception of those related to BIG-IP.  An autoscaling group for the application is created, but we leave the creation of CloudWatch alarms and scaling policies as an exercise for the future.",
+  "Parameters": {
+    "Vpc": {
+      "Description": "Common VPC for whole deployment",
+      "Type": "AWS::EC2::VPC::Id"
+    },
+    "Subnet": {
+      "Description": "Common subnet for whole deployment",
+      "Type": "AWS::EC2::Subnet::Id"
+    },
+    "AvailabilityZone": {
+      "Description": "Availability zone in which resources are being deployed",
+      "Type": "AWS::EC2::AvailabilityZone::Name"
+    },
+    "KeyName": {
+      "Description": "Name of an existing EC2 KeyPair to enable SSH access to the instance",
+      "Type": "AWS::EC2::KeyPair::KeyName"
+    }
+  },
+  "Resources": {
+    "AppSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "VpcId": {
+          "Ref": "Vpc"
+        },
+        "GroupDescription": "Enable SSH access via port 22",
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "22",
+            "ToPort": "22",
+            "CidrIp": "0.0.0.0/0"
+          },
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "80",
+            "ToPort": "80",
+            "CidrIp": "0.0.0.0/0"
+          }
+        ],
+        "Tags": [
+          {
+            "Key": "Application",
+            "Value": {
+              "Ref": "AWS::StackId"
+            }
+          }
+        ]
+      }
+    },
+    "AppLaunchConfig": {
+      "Type": "AWS::AutoScaling::LaunchConfiguration",
+      "Properties": {
+        "AssociatePublicIpAddress": true,
+        "ImageId": "ami-5e8cc834",
+        "InstanceType": "m3.large",
+        "KeyName": {
+          "Ref": "KeyName"
+        },
+        "SecurityGroups": [
+          {
+            "Ref": "AppSecurityGroup"
+          }
+        ]
+      }
+    },
+    "AppAutoscaleGroup": {
+      "Type": "AWS::AutoScaling::AutoScalingGroup",
+      "Properties": {
+        "Tags": [
+          {
+            "Key": "Application",
+            "Value": {
+              "Ref": "AWS::StackId"
+            },
+            "PropagateAtLaunch": "true"
+          },
+          {
+            "Key": "Name",
+            "Value":"AppServer",
+            "PropagateAtLaunch": "true"
+          }
+        ],
+        "AvailabilityZones": [
+          {
+            "Ref": "AvailabilityZone"
+          }
+        ],
+        "VPCZoneIdentifier": [
+          {
+            "Ref": "Subnet"
+          }
+        ],
+        "Cooldown": "600",
+        "HealthCheckGracePeriod": 120,
+        "LaunchConfigurationName": {
+          "Ref": "AppLaunchConfig"
+        },
+        "MaxSize": "2",
+        "MinSize": "1",
+        "MetricsCollection": [
+          {
+            "Granularity": "1Minute"
+          }
+        ]
+      }
+    }
+  },
+  "Outputs": {
+    "AppAutoscaleGroup": {
+      "Value": {
+        "Ref": "AppAutoscaleGroup"
+      }
+    }
+  }
+}

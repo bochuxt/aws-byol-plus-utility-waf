@@ -1,0 +1,254 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "This template deploys common EC2/VPC resources which will be used by the other templates.  In particular, this template creates a VPC, subnets, a routing table, common security groups, and an ElasticLoadBalancer group to which all BIG-IPs will be added.",
+  "Parameters": {
+    "BigipManagementGuiPort": {
+      "Description": "Port to use for the managment GUI",
+      "Type": "Number",
+      "Default": 8443,
+      "ConstraintDescription": "Must be a valid, unusued port on BIG-IP."
+    }
+  },
+  "Resources": {
+    "Vpc": {
+      "Type": "AWS::EC2::VPC",
+      "Properties": {
+        "EnableDnsSupport": "true",
+        "EnableDnsHostnames": "true",
+        "CidrBlock": "10.0.0.0/16",
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "AWS::StackName"
+          },
+          {
+            "Key": "Application",
+            "Value": {
+              "Ref": "AWS::StackId"
+            }
+          }
+        ]
+      }
+    },
+    "InternetGateway": {
+      "Type": "AWS::EC2::InternetGateway",
+      "Properties": {
+        "Tags": [
+          {
+            "Key": "Application",
+            "Value": {
+              "Ref": "AWS::StackId"
+            }
+          }
+        ]
+      }
+    },
+    "InternetGatewayAttachment": {
+      "Type": "AWS::EC2::VPCGatewayAttachment",
+      "Properties": {
+        "VpcId": {
+          "Ref": "Vpc"
+        },
+        "InternetGatewayId": {
+          "Ref": "InternetGateway"
+        }
+      }
+    },
+    "Subnet": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "VpcId": {
+          "Ref": "Vpc"
+        },
+        "CidrBlock": "10.0.0.0/24",
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "AWS::StackName"
+          },
+          {
+            "Key": "Application",
+            "Value": {
+              "Ref": "AWS::StackId"
+            }
+          }
+        ]
+      }
+    },
+    "RouteTable": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {
+          "Ref": "Vpc"
+        },
+        "Tags": [
+          {
+            "Key": "Application",
+            "Value": {
+              "Ref": "AWS::StackId"
+            }
+          }
+        ]
+      }
+    },
+    "InternetRoute": {
+      "Type": "AWS::EC2::Route",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "RouteTable"
+        },
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "GatewayId": {
+          "Ref": "InternetGateway"
+        }
+      }
+    },
+    "SubnetRouteTableAssociation": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "SubnetId": {
+          "Ref": "Subnet"
+        },
+        "RouteTableId": {
+          "Ref": "RouteTable"
+        }
+      }
+    },
+    "BigipSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "VpcId": {
+          "Ref": "Vpc"
+        },
+        "GroupDescription": "Enable SSH access via port 22 and enable access to virtual servers on 80 and 443",
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "22",
+            "ToPort": "22",
+            "CidrIp": "0.0.0.0/0"
+          },
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "80",
+            "ToPort": "80",
+            "CidrIp": "0.0.0.0/0"
+          },
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "443",
+            "ToPort": "443",
+            "CidrIp": "0.0.0.0/0"
+          },
+          {
+            "IpProtocol": "tcp",
+            "FromPort": {
+              "Ref": "BigipManagementGuiPort"
+            },
+            "ToPort": {
+              "Ref": "BigipManagementGuiPort"
+            },
+            "CidrIp": "0.0.0.0/0"
+          }
+        ],
+        "Tags": [
+          {
+            "Key": "Application",
+            "Value": {
+              "Ref": "AWS::StackId"
+            }
+          }
+        ]
+      }
+    },
+    "BigipElasticLoadBalancer": {
+      "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
+      "DependsOn": "InternetGatewayAttachment",
+      "Properties": {
+        "HealthCheck": {
+          "HealthyThreshold": "2",
+          "Interval": "10",
+          "Target": "HTTP:80/",
+          "Timeout": "5",
+          "UnhealthyThreshold": "10"
+        },
+        "LoadBalancerName": {
+          "Fn::Join": [
+            "",
+            [ 
+              "BigipElasticLoadBalancer"
+            ]
+          ]
+        },
+        "Listeners": [
+          {
+            "InstancePort": 80,
+            "LoadBalancerPort": 80,
+            "Protocol": "HTTP"
+          }
+        ],
+        "SecurityGroups": [
+          {
+            "Ref": "BigipSecurityGroup"
+          }
+        ],
+        "Subnets": [
+          {
+            "Ref": "Subnet"
+          }
+        ],
+        "Tags": [
+          {
+            "Key": "Application",
+            "Value": {
+              "Ref": "AWS::StackId"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "Outputs": {
+    "Vpc": {
+      "Description": "Id of VPC",
+      "Value": {
+        "Ref": "Vpc"
+      }
+    },
+    "Subnet": {
+      "Description": "Subnet in which BIG-IP and application resources will be deployed",
+      "Value": {
+        "Ref": "Subnet"
+      }
+    },
+    "AvailabilityZone": {
+      "Value": {
+        "Fn::GetAtt": [
+          "Subnet",
+          "AvailabilityZone"
+        ]
+      }
+    },
+    "BigipSecurityGroup": {
+      "Description": "Id of security group for all BIG-IPs",
+      "Value": {
+        "Ref": "BigipSecurityGroup"
+      }
+    },
+    "BigipElasticLoadBalancer": {
+      "Description": "Id of ELB Group for all BIG-IPs",
+      "Value": {
+        "Ref": "BigipElasticLoadBalancer"
+      }
+    },
+    "BigipElasticLoadBalancerDnsName": {
+      "Description": "DNS Name for the ELB Group containing BIG-IP",
+      "Value": {
+        "Fn::GetAtt": [
+          "BigipElasticLoadBalancer",
+          "DNSName"
+        ]
+      }
+    }
+  }
+}

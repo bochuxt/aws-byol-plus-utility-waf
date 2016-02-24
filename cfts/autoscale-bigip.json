@@ -1,0 +1,574 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "This template deploys an autoscaling group for utility instances BIG-IP. Example scaling policies and CloudWatch alarms are associated with the autoscaling group.",
+  "Parameters": {
+    "Vpc": {
+      "Description": "Common VPC for whole deployment",
+      "Type": "AWS::EC2::VPC::Id"
+    },
+    "Subnet": {
+      "Description": "Common subnet for whole deployment",
+      "Type": "AWS::EC2::Subnet::Id"
+    },
+    "AvailabilityZone": {
+      "Description": "Availability zone in which resources are being deployed",
+      "Type": "AWS::EC2::AvailabilityZone::Name"
+    },
+    "BigipSecurityGroup": {
+      "Description": "Pre-existing security group for BIG-IP",
+      "Type": "AWS::EC2::SecurityGroup::Id"
+    },
+    "KeyName": {
+      "Description": "Name of an existing EC2 KeyPair to enable SSH access to the instance",
+      "Type": "AWS::EC2::KeyPair::KeyName"
+    },
+    "BigipElasticLoadBalancer": {
+      "Description": "Elastic Load Balancer group for all BIG-IPs",
+      "Type": "String",
+      "Default": "BigipElasticLoadBalancer"
+    },
+    "BigipInstanceType": {
+      "Description": "F5 BIG-IP Instance Type",
+      "Type": "String",
+      "Default": "m3.2xlarge",
+      "AllowedValues": [
+        "m3.xlarge",
+        "m3.2xlarge",
+        "c1.medium",
+        "c1.xlarge",
+        "cc1.4xlarge",
+        "cc2.8xlarge",
+        "cg1.4xlarge"
+      ],
+      "ConstraintDescription": "must be a valid Big-IP virtual EC2 instance type."
+    },
+    "BigipPerformanceType": {
+      "Description": "F5 Bigip Performance Type",
+      "Type": "String",
+      "Default": "Best",
+      "AllowedValues": [
+        "Good",
+        "Better",
+        "Best"
+      ],
+      "ConstraintDescription": "Must be a valid F5 Big-IP performance type"
+    },
+    "BigipThroughput": {
+      "Description": "F5 Bigip Throughput",
+      "Type": "String",
+      "Default": "1000-Mbps",
+      "AllowedValues": [
+        "25-Mbps",
+        "200-Mbps",
+        "1000-Mbps"
+      ],
+      "ConstraintDescription": "Please select your desired throughput"
+    },
+    "BigipManagementGuiPort": {
+      "Description": "Port to use for the managment GUI",
+      "Type": "Number",
+      "Default": 8443,
+      "ConstraintDescription": "Must be a valid, unusued port on BIG-IP."
+    },
+    "AppAutoscaleGroup": {
+      "Description": "Name of the autoscale group for the application, used when instantiating iAppLx template for pool member autoscale.",
+      "Type": "String"
+    },
+    "AppAutoscalePoolName": {
+      "Description": "Name of the BIG-IP load balancing pool for the application",
+      "Type": "String",
+      "Default": "app_as_pool_80"
+    },
+    "IamSecretKey": {
+      "Description": "IAM Secret Key",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "255",
+      "AllowedPattern": "[\\x20-\\x7E]*",
+      "NoEcho": "True",
+      "ConstraintDescription": "can contain only ASCII characters."
+    },
+    "IamAccessKey": {
+      "Description": "IAM Access Key",
+      "Type": "String",
+      "MinLength": "16",
+      "MaxLength": "32",
+      "AllowedPattern": "[\\w]*",
+      "NoEcho": "True",
+      "ConstraintDescription": "can contain only ASCII characters."
+    }
+  },
+  "Mappings": {
+    "BigipRegionMap": {
+      "us-east-1": {
+        "Good25": "ami-xxxxxxxx",
+        "Better25": "ami-xxxxxxxx",
+        "Best25": "ami-xxxxxxxx",
+        "Good200": "ami-xxxxxxxx",
+        "Better200": "ami-xxxxxxxx",
+        "Best200": "ami-xxxxxxxx",
+        "Good1000": "ami-xxxxxxxx",
+        "Better1000": "ami-xxxxxxxx",
+        "Best1000": "ami-7023061a"
+      },
+      "us-west-1": {
+        "Good25": "ami-xxxxxxxx",
+        "Better25": "ami-xxxxxxxx",
+        "Best25": "ami-xxxxxxxx",
+        "Good200": "ami-xxxxxxxx",
+        "Better200": "ami-xxxxxxxx",
+        "Best200": "ami-xxxxxxxx",
+        "Good1000": "ami-xxxxxxxx",
+        "Better1000": "ami-xxxxxxxx",
+        "Best1000": "ami-xxxxxxxx"
+      },
+      "us-west-2": {
+        "Good25": "ami-xxxxxxxx",
+        "Better25": "ami-xxxxxxxx",
+        "Best25": "ami-xxxxxxxx",
+        "Good200": "ami-xxxxxxxx",
+        "Better200": "ami-xxxxxxxx",
+        "Best200": "ami-xxxxxxxx",
+        "Good1000": "ami-xxxxxxxx",
+        "Better1000": "ami-xxxxxxxx",
+        "Best1000": "ami-xxxxxxxx"
+      },
+      "eu-west-1": {
+        "Good25": "ami-xxxxxxxx",
+        "Better25": "ami-xxxxxxxx",
+        "Best25": "ami-xxxxxxxx",
+        "Good200": "ami-xxxxxxxx",
+        "Better200": "ami-xxxxxxxx",
+        "Best200": "ami-xxxxxxxx",
+        "Good1000": "ami-xxxxxxxx",
+        "Better1000": "ami-xxxxxxxx",
+        "Best1000": "ami-xxxxxxxx"
+      },
+      "sa-east-1": {
+        "Good25": "ami-xxxxxxxx",
+        "Better25": "ami-xxxxxxxx",
+        "Best25": "ami-xxxxxxxx",
+        "Good200": "ami-xxxxxxxx",
+        "Better200": "ami-xxxxxxxx",
+        "Best200": "ami-xxxxxxxx",
+        "Good1000": "ami-xxxxxxxx",
+        "Better1000": "ami-xxxxxxxx",
+        "Best1000": "ami-xxxxxxxx"
+      },
+      "ap-southeast-1": {
+        "Good25": "ami-xxxxxxxx",
+        "Better25": "ami-xxxxxxxx",
+        "Best25": "ami-xxxxxxxx",
+        "Good200": "ami-xxxxxxxx",
+        "Better200": "ami-xxxxxxxx",
+        "Best200": "ami-xxxxxxxx",
+        "Good1000": "ami-xxxxxxxx",
+        "Better1000": "ami-xxxxxxxx",
+        "Best1000": "ami-xxxxxxxx"
+      },
+      "ap-southeast-2": {
+        "Good25": "ami-xxxxxxxx",
+        "Better25": "ami-xxxxxxxx",
+        "Best25": "ami-xxxxxxxx",
+        "Good200": "ami-xxxxxxxx",
+        "Better200": "ami-xxxxxxxx",
+        "Best200": "ami-xxxxxxxx",
+        "Good1000": "ami-xxxxxxxx",
+        "Better1000": "ami-xxxxxxxx",
+        "Best1000": "ami-xxxxxxxx"
+      },
+      "ap-northeast-1": {
+        "Good25": "ami-xxxxxxxx",
+        "Better25": "ami-xxxxxxxx",
+        "Best25": "ami-xxxxxxxx",
+        "Good200": "ami-xxxxxxxx",
+        "Better200": "ami-xxxxxxxx",
+        "Best200": "ami-xxxxxxxx",
+        "Good1000": "ami-xxxxxxxx",
+        "Better1000": "ami-xxxxxxxx",
+        "Best1000": "ami-xxxxxxxx"
+      }
+    },
+    "AWSBigipThrougput": {
+      "25-Mbps": {
+        "Good": "Good25",
+        "Better": "Better25",
+        "Best": "Best25"
+      },
+      "200-Mbps": {
+        "Good": "Good200",
+        "Better": "Better200",
+        "Best": "Best200"
+      },
+      "1000-Mbps": {
+        "Good": "Good1000",
+        "Better": "Better1000",
+        "Best": "Best1000"
+      }
+    }
+  },
+  "Resources": {
+    "BigipLaunchConfig": {
+      "Type": "AWS::AutoScaling::LaunchConfiguration",
+      "Metadata": {
+        "AWS::CloudFormation::Init": {
+          "config": {
+            "files": {
+              "/root/firstrun.sh": {
+                "content": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "#!/bin/bash\n",
+                      ". /root/firstrun.config\n",
+                      "FILE=/tmp/firstrun.log\n",
+                      "if [ ! -e $FILE ]\n",
+                      " then\n",
+                      "     touch $FILE\n",
+                      "     nohup $0 0<&- &>/dev/null &\n",
+                      "     exit\n",
+                      "fi\n",
+                      "function checkStatus() {\n",
+                      "        count=1\n",
+                      "        sleep 10;\n",
+                      "        STATUS=`cat /var/prompt/ps1`;\n",
+                      "        while [[ ${STATUS}x != 'Active'x ]]; do\n",
+                      "                echo -n '.';\n",
+                      "                sleep 5;\n",
+                      "                count=$(($count+1));\n",
+                      "                STATUS=`cat /var/prompt/ps1`;\n",
+                      "                if [[ $count -eq 60 ]]; then",
+                      "                        checkretstatus=\"restart\";\n",
+                      "                        return;\n",
+                      "                fi\n",
+                      "        done;\n",
+                      "        checkretstatus=\"run\";\n",
+                      "}\n",
+                      "function checkF5Ready {\n",
+                      "     sleep 5\n",
+                      "     while [[ ! -e '/var/prompt/ps1' ]]\n",
+                      " do\n",
+                      "     echo -n '.'\n",
+                      "     sleep 5\n",
+                      "done \n",
+                      "sleep 5\n",
+                      "STATUS=`cat /var/prompt/ps1`\n",
+                      "while [[ ${STATUS}x != 'NO LICENSE'x ]]\n",
+                      " do\n",
+                      "     echo -n '.'\n",
+                      "     sleep 5\n",
+                      "     STATUS=`cat /var/prompt/ps1`\n",
+                      "done\n",
+                      "echo -n ' '\n",
+                      "while [[ ! -e '/var/prompt/cmiSyncStatus' ]]\n",
+                      " do\n",
+                      "     echo -n '.'\n",
+                      "     sleep 5\n",
+                      "done \n",
+                      "STATUS=`cat /var/prompt/cmiSyncStatus`\n",
+                      "while [[ ${STATUS}x != 'Standalone'x ]]\n",
+                      " do\n",
+                      "     echo -n '.'\n",
+                      "     sleep 5\n",
+                      "     STATUS=`cat /var/prompt/cmiSyncStatus`\n",
+                      "done\n",
+                      "}\n",
+                      "function checkStatusnoret {\n",
+                      "sleep 10\n",
+                      "STATUS=`cat /var/prompt/ps1`\n",
+                      "while [[ ${STATUS}x != 'Active'x ]]\n",
+                      " do\n",
+                      "     echo -n '.'\n",
+                      "     sleep 5\n",
+                      "     STATUS=`cat /var/prompt/ps1`\n",
+                      "done\n",
+                      "}\n",
+                      "exec 1<&-\n",
+                      "exec 2<&-\n",
+                      "exec 1<>$FILE\n",
+                      "exec 2>&1\n",
+                      "checkF5Ready\n",
+                      "sleep 20\n",
+                      "tmsh modify auth user admin password $ADMIN_PASSWORD\n",
+                      "tmsh modify sys dns name-servers add {10.0.0.2}\n",
+                      "sleep 20\n",
+                      "tmsh save /sys config\n",
+                      "checkStatusnoret\n",
+                      "echo \"Setting hostname: $HOSTNAME\"\n",
+                      "tmsh modify /sys global-settings hostname $HOSTNAME\n",
+                      "tmsh mv cm device bigip1 $HOSTNAME\n",
+                      "tmsh modify sys ntp timezone \"$TZ\"\n",
+                      "tmsh modify sys db setup.run value false\n",
+                      "echo \"provisioning asm\"\n",
+                      "sleep 20\n",
+                      "tmsh modify /sys provision asm level nominal\n",
+                      "checkretstatus='stop'\n",
+                      "while [[ $checkretstatus != \"run\" ]]; do\n",
+                      "checkStatus\n",
+                      "if [[ $checkretstatus == \"restart\" ]]; then\n",
+                      "echo restarting\n",
+                      "tmsh modify /sys provision asm level none\n",
+                      "checkStatusnoret\n",
+                      "checkretstatus='stop'\n",
+                      "tmsh modify /sys provision asm level nominal\n",
+                      "fi\n",
+                      "done\n",
+                      "echo done\n",
+                      "sleep 10\n",
+                      "tmsh modify sys global-settings aws-access-key $IAM_ACCESS_KEY\n",
+                      "tmsh modify sys global-settings aws-secret-key $IAM_SECRET_KEY\n",
+                      "tmsh modify sys db setup.run value false\n",
+                      "tmsh modify sys httpd ssl-port $MANAGEMENT_GUI_PORT\n",
+                      "tmsh modify net self-allow defaults add { tcp:$MANAGEMENT_GUI_PORT }\n",
+                      "tmsh modify sys autoscale-group autoscale-group-id $BIGIP_ASG_NAME\n",
+                      "tmsh load sys config merge file /usr/libexec/aws/metrics/aws-cloudwatch-icall-metrics-config\n",
+                      "tmsh create ltm pool $WEB_POOL_NAME monitor http\n",
+                      "# workaround to bug found in byol version of 12.0 - target fix is HF2\n",
+                      "curl -sk -u admin:$ADMIN_PASSWORD -H \"Content-Type: application/json\" -X POST -d '{\"name\": \"ASGWebservers\",\"inputProperties\": [{\"id\": \"AWSAutoScaledPoolName\",\"type\": \"STRING\",\"metaData\": {\"displayName\": \"Pool Name\",\"isRequired\": true,\"description\": \"Pool name which needs to be autoscaled\"},\"value\":\"",
+                      {
+                        "Ref": "AppAutoscalePoolName"
+                      },
+                      "\" },{\"id\": \"PoolAWSAutoScaleGroupName\",\"type\": \"STRING\",\"metaData\": {\"displayName\": \"AWS AutoScale Group Name\",\"isRequired\": true,\"description\": \"The AutoScale group name in AWS corresponding to this pool\"},\"value\":\"",
+                      {
+                        "Ref": "AppAutoscaleGroup"
+                      },
+                      "\" },{\"id\": \"PoolMemberServicePort\",\"type\": \"NUMBER\",\"metaData\": {\"displayName\": \"Port Number\",\"isRequired\": true,\"description\": \"Service Port to be used for each pool member\"},\"value\": 80},{\"id\": \"PoolMemberDescription\",\"type\": \"STRING\",\"metaData\": {\"displayName\": \"Description\",\"isRequired\": false,\"description\": \"Description to be used for each pool member\"},\"value\": \"web pool members ASG\"},{\"id\": \"PoolMemberConnectionLimit\",\"type\": \"NUMBER\",\"metaData\": {\"displayName\": \"Connection Limit\",\"isRequired\": false,\"description\": \"Connection limit to be set for each pool member\"}},{\"id\": \"PoolMemberConnectionRateLimit\",\"type\": \"NUMBER\",\"metaData\": {\"displayName\": \"Connection Rate Limit\",\"isRequired\": false,\"description\": \"Rate limit for connections to each pool member\"}},{\"id\": \"PoolMemberHealthMonitor\",\"type\": \"NUMBER\",\"metaData\": {\"displayName\": \"Health Monitor\",\"isRequired\": true,\"description\": \"Use 0 for None, 1 for Inherit from Pool and 2 for Member Specific\"},\"value\": 1},{\"id\": \"PoolMemberMonitorName\",\"type\": \"STRING\",\"metaData\": {\"displayName\": \"Monitor Name\",\"isRequired\": false,\"description\": \"If Health Monitor is set to 2 above then specify the name\"}}],\"configurationProcessorReference\": {\"link\": \"https://localhost/mgmt/shared/iapp/processors/f5-iAppLX-aws-autoscale\"},\"statsProcessorReference\": {\"link\": \"https://localhost/mgmt/shared/iapp/processors/icrd-stats\"},\"audit\": {\"intervalSeconds\": 0,\"policy\": \"ENFORCE_CONFIGURED\"},\"configProcessorTimeoutSeconds\": 30,\"statsProcessorTimeoutSeconds\": 15,\"state\": \"BINDING\",\"baseReference\": {\"link\": \"https://localhost/mgmt/shared/iapp/blocks/ccd8668e-7392-3be0-80ee-84b7ea604f72\"}}' https://localhost:${MANAGEMENT_GUI_PORT}/mgmt/shared/iapp/blocks\n",
+                      "tmsh load sys config merge file /usr/libexec/aws/autoscale/aws-autoscale-icall-config\n",
+                      "tmsh modify sys icall handler periodic autoscaleHandler interval 30\n",
+                      "curl https://cdn.f5.com/product/blackbox/asm-policy-linux-high.xml > /home/admin/asm-policy-linux-high.xml\n",
+                      "tmsh load asm policy file /home/admin/asm-policy-linux-high.xml\n",
+                      "tmsh modify asm policy /Common/linux-high active\n",
+                      "tmsh create ltm policy app-ltm-policy strategy first-match\n",
+                      "tmsh modify ltm policy app-ltm-policy controls add { asm }\n",
+                      "tmsh modify ltm policy app-ltm-policy rules add { associate-asm-policy { actions replace-all-with { 0 { asm request enable policy /Common/linux-high } } } }\n",
+                      "tmsh create ltm virtual app-as-vs-80 { destination 0.0.0.0:http mask any ip-protocol tcp policies replace-all-with { app-ltm-policy { } } pool $WEB_POOL_NAME profiles replace-all-with { http { } tcp { } websecurity { } } source 0.0.0.0/0 source-address-translation { type automap } translate-address enabled translate-port enabled}\n",
+                      "tmsh save /sys config\n"
+                    ]
+                  ]
+                },
+                "mode": "000755",
+                "owner": "root",
+                "group": "root"
+              },
+              "/root/firstrun.config": {
+                "content": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "#!/bin/bash\n",
+                      "HOSTNAME=`curl http://169.254.169.254/latest/meta-data/public-hostname`\n",
+                      "TZ='America/New_York'\n",
+                      "NTPSERVERS='206.217.199.65 198.55.111.50 108.61.73.243 204.9.54.119 173.44.32.10'\n",
+                      "WEB_POOL_NAME='",
+                      {
+                        "Ref": "AppAutoscalePoolName"
+                      },
+                      "'\n",
+                      "CRT='default.crt'\n",
+                      "KEY='default.key'\n",
+                      "IAM_ACCESS_KEY='",
+                      {
+                        "Ref": "IamAccessKey"
+                      },
+                      "'\n",
+                      "IAM_SECRET_KEY='",
+                      {
+                        "Ref": "IamSecretKey"
+                      },
+                      "'\n",
+                      "ADMIN_PASSWORD='GoF5!'\n",
+                      "MANAGEMENT_GUI_PORT='",
+                      {
+                        "Ref": "BigipManagementGuiPort"
+                      },
+                      "'\n",
+                      "export AWS_AUTO_SCALING_HOME=/opt/aws/autoscaling-1.0.61.6\n",
+                      "export JAVA_HOME=/usr/lib/jvm/jre-1.7.0\n",
+                      "BIGIP_ASG_NAME=`/opt/aws/autoscaling-1.0.61.6/bin/as-describe-auto-scaling-groups -I $IAM_ACCESS_KEY -S $IAM_SECRET_KEY BigipAutoscaleGroup | grep AUTO-SCALING-GROUP | grep BigipAutoscaleGroup | cut -d' ' -f3`\n"
+                    ]
+                  ]
+                }
+              }
+            },
+            "commands": {
+              "b-configure-BigIP": {
+                "command": "/root/firstrun.sh\n"
+              }
+            }
+          }
+        }
+      },
+      "Properties": {
+        "AssociatePublicIpAddress": true,
+        "ImageId": {
+          "Fn::FindInMap": [
+            "BigipRegionMap",
+            {
+              "Ref": "AWS::Region"
+            },
+            {
+              "Fn::FindInMap": [
+                "AWSBigipThrougput",
+                {
+                  "Ref": "BigipThroughput"
+                },
+                {
+                  "Ref": "BigipPerformanceType"
+                }
+              ]
+            }
+          ]
+        },
+        "InstanceType": {
+          "Ref": "BigipInstanceType"
+        },
+        "KeyName": {
+          "Ref": "KeyName"
+        },
+        "SecurityGroups": [
+          {
+            "Ref": "BigipSecurityGroup"
+          }
+        ],
+        "UserData": {
+          "Fn::Base64": {
+            "Fn::Join": [
+              "",
+              [
+                "#!/bin/bash -x\n",
+                "/opt/aws/apitools/cfn-init-1.4-0.amzn1/bin/cfn-init -v -s ",
+                {
+                  "Ref": "AWS::StackId"
+                },
+                " -r BigipLaunchConfig",
+                " --region ",
+                {
+                  "Ref": "AWS::Region"
+                },
+                "\n"
+              ]
+            ]
+          }
+        }
+      }
+    },
+    "BigipAutoscaleGroup": {
+      "Type": "AWS::AutoScaling::AutoScalingGroup",
+      "Properties": {
+        "AvailabilityZones": [
+          {
+            "Ref": "AvailabilityZone"
+          }
+        ],
+        "VPCZoneIdentifier": [
+          {
+            "Ref": "Subnet"
+          }
+        ],
+        "Cooldown": "1500",
+        "LoadBalancerNames": [
+          {
+            "Ref": "BigipElasticLoadBalancer"
+          }
+        ],
+        "HealthCheckGracePeriod": 1200,
+        "HealthCheckType": "ELB",
+        "LaunchConfigurationName": {
+          "Ref": "BigipLaunchConfig"
+        },
+        "MaxSize": "1",
+        "MinSize": "0",
+        "MetricsCollection": [
+          {
+            "Granularity": "1Minute"
+          }
+        ],
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "BIG-IP Autoscale Instance",
+            "PropagateAtLaunch": true
+          },
+          {
+            "Key": "Application",
+            "Value": "AWS::StackId",
+            "PropagateAtLaunch": true
+          }
+        ]
+      }
+    },
+    "BigipScaleUpPolicy": {
+      "Type": "AWS::AutoScaling::ScalingPolicy",
+      "Properties": {
+        "AdjustmentType": "ChangeInCapacity",
+        "AutoScalingGroupName": {
+          "Ref": "BigipAutoscaleGroup"
+        },
+        "Cooldown": "1500",
+        "ScalingAdjustment": "1"
+      }
+    },
+    "BigipScaleDownPolicy": {
+      "Type": "AWS::AutoScaling::ScalingPolicy",
+      "Properties": {
+        "AdjustmentType": "ChangeInCapacity",
+        "AutoScalingGroupName": {
+          "Ref": "BigipAutoscaleGroup"
+        },
+        "Cooldown": "1500",
+        "ScalingAdjustment": "-1"
+      }
+    },
+    "BigipHighbytesAlarm": {
+      "Type": "AWS::CloudWatch::Alarm",
+      "DependsOn": "BigipAutoscaleGroup",
+      "Properties": {
+        "ActionsEnabled": "True",
+        "AlarmActions": [
+          {
+            "Ref": "BigipScaleUpPolicy"
+          }
+        ],
+        "AlarmDescription": "Server side network out exceeds average threshold",
+        "ComparisonOperator": "GreaterThanThreshold",
+        "EvaluationPeriods": "1",
+        "MetricName": "server_side_traffic.bytes_in-per-sec",
+        "Namespace": {
+          "Ref": "BigipAutoscaleGroup"
+        },
+        "Period": "60",
+        "Statistic": "Average",
+        "Threshold": "35000"
+      }
+    },
+    "BigipLowbytesAlarm": {
+      "Type": "AWS::CloudWatch::Alarm",
+      "DependsOn": "BigipAutoscaleGroup",
+      "Properties": {
+        "ActionsEnabled": "True",
+        "AlarmActions": [
+          {
+            "Ref": "BigipScaleDownPolicy"
+          }
+        ],
+        "AlarmDescription": "Server side network out below average threshold",
+        "ComparisonOperator": "LessThanThreshold",
+        "EvaluationPeriods": "5",
+        "MetricName": "server_side_traffic.bytes_in-per-sec",
+        "Namespace": {
+          "Ref": "BigipAutoscaleGroup"
+        },
+        "Period": "60",
+        "Statistic": "Average",
+        "Threshold": "10000"
+      }
+    }
+  },
+  "Outputs": {
+    "BigipAutoscaleGroup": {
+      "Value": {
+        "Ref": "BigipAutoscaleGroup"
+      }
+    }
+  }
+}
