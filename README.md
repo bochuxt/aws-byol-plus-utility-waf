@@ -1,6 +1,6 @@
 # Utility + BYOL Deployment of BIG-IP in AWS
 
-This directory contains CloudFormation templates which provide an example of how to combine BYOL and Utility instances of BIG-IP in AWS. BIG-IP is used as a load balancer and web application firewall.
+This directory contains CloudFormation templates which provide an example of how to combine BYOL and Utility instances of BIG-IP in AWS. BIG-IP is used as a load balancer and web application firewall.  Using this code requires acess to the 12.0 Hourly image which should be available shortly in the AWS Marketplace. Until then, this code is provided to show the use of CloudInit and autoscale features of BIG-IP. 
 
 ## Description
 
@@ -31,7 +31,8 @@ With the exception of the byol-bigip.json template, each of the other templates 
 
 ### Prerequisites
 
-1) Access to 'BEST' BYOL and Hourly images in the Amazon region within which you are working.<br>
+1) Access to 12.0 'BEST' BYOL and Hourly images in the Amazon region within which you are working. <br>
+- The 12.0 Hourly image should be available shortly, please contact F5 sales personal for details on its availability<br>
 - Make sure that you have accepted the EULA for both images in the AWS marketplace.<br>
 2) Set of AWS Access Keys for use by BIG-IP, as described here:<br>
 - https://support.f5.com/kb/en-us/products/big-ip_ltm/manuals/product/bigip-ve-setup-amazon-ec2-12-0-0/4.html#unique_1903231220<br>
