@@ -179,7 +179,7 @@ if deploy_jmeter_host == 'true':
 print 'Adding BYOL BIG-IP instances to ElasticLoadBalancer group'
 elb_client = boto3.client('elb', region)
 print elb_client.register_instances_with_load_balancer(
-    LoadBalancerName='BigipElasticLoadBalancer',
+    LoadBalancerName=dm.namespace['BigipElasticLoadBalancer'],
     Instances=[{'InstanceId': dm.namespace['ByolBigipInstance']}]
 )
 

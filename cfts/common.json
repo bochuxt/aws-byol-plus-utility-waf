@@ -174,9 +174,10 @@
         },
         "LoadBalancerName": {
           "Fn::Join": [
-            "",
+            "-",
             [ 
-              "BigipElasticLoadBalancer"
+              "BigipElb", 
+              {"Ref": "AWS::StackName"}
             ]
           ]
         },
