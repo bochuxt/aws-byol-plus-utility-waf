@@ -323,7 +323,6 @@
                       "tmsh modify sys autoscale-group autoscale-group-id $BIGIP_ASG_NAME\n",
                       "tmsh load sys config merge file /usr/libexec/aws/metrics/aws-cloudwatch-icall-metrics-config\n",
                       "tmsh create ltm pool $WEB_POOL_NAME monitor http\n",
-                      "# workaround to bug found in byol version of 12.0 - target fix is HF2\n",
                       "curl -sk -u admin:$ADMIN_PASSWORD -H \"Content-Type: application/json\" -X POST -d '{\"name\": \"ASGWebservers\",\"inputProperties\": [{\"id\": \"AWSAutoScaledPoolName\",\"type\": \"STRING\",\"metaData\": {\"displayName\": \"Pool Name\",\"isRequired\": true,\"description\": \"Pool name which needs to be autoscaled\"},\"value\":\"",
                       {
                         "Ref": "AppAutoscalePoolName"
